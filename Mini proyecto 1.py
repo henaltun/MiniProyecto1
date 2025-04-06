@@ -62,4 +62,4 @@ while True:
     # Mostrar imagen
     cv2.imshow("Arrastrar y Soltar", img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        
+        break
