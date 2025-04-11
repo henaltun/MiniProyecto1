@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import math
+import numpy as np
 
 # Inicialización
 cap = cv2.VideoCapture(0)
@@ -12,14 +13,29 @@ mp_draw = mp.solutions.drawing_utils
 def distance(p1, p2):
     return math.hypot(p2[0] - p1[0], p2[1] - p1[1])
 
-# Rectángulo virtual (posición y tamaño)
-rect_x, rect_y = 300, 200
-rect_w, rect_h = 150, 100
-rect_selected = False  # Estado de agarre
+# Variables para la pelota de playa
+ball_x, ball_y = 600, 300
+ball_radius = 60
+ball_selected = False
+
+# Variables para el cuadrado
+square_x, square_y = 400, 200
+square_size = 120
+square_selected = False
+
+# Función para dibujar el cuadrado
+def draw_square(img, x, y, size, color):
+    top_left = (x - size // 2, y - size // 2)
+    bottom_right = (x + size // 2, y + size // 2)
+    cv2.rectangle(img, top_left, bottom_right, color, -1)
 
 while True:
     success, img = cap.read()
-    img = cv2.flip(img, 1)  # Voltear imagen para efecto espejo
+    if not success:
+        print("Error al capturar la imagen")
+        break
+
+    img = cv2.flip(img, 1)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     results = hands.process(img_rgb)
 
@@ -33,33 +49,51 @@ while True:
 
             mp_draw.draw_landmarks(img, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            # Detectar agarre (distancia entre pulgar e índice)
             x1, y1 = lmList[4][1], lmList[4][2]
             x2, y2 = lmList[8][1], lmList[8][2]
             dist = distance((x1, y1), (x2, y2))
-
-            # Centro del dedo índice (para mover el objeto)
             cursor = (x2, y2)
 
-            # Si están juntos → Agarre
             if dist < 40:
                 cv2.putText(img, "AGARRE", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                # Verificar si el dedo índice está sobre el rectángulo
-                if (rect_x < cursor[0] < rect_x + rect_w) and (rect_y < cursor[1] < rect_y + rect_h):
-                    rect_selected = True
+
+                # Verificar selección de la pelota
+                if (ball_x - ball_radius < cursor[0] < ball_x + ball_radius) and (ball_y - ball_radius < cursor[1] < ball_y + ball_radius):
+                    ball_selected = True
+                else:
+                    ball_selected = False
+
+                # Verificar selección del cuadrado
+                half = square_size // 2
+                if (square_x - half < cursor[0] < square_x + half) and (square_y - half < cursor[1] < square_y + half):
+                    square_selected = True
+                else:
+                    square_selected = False
             else:
-                rect_selected = False
+                ball_selected = False
+                square_selected = False
 
-            # Si está agarrado, mover el rectángulo con el dedo índice
-            if rect_selected:
-                rect_x = cursor[0] - rect_w // 2
-                rect_y = cursor[1] - rect_h // 2
+            # Mover la pelota
+            if ball_selected:
+                ball_x, ball_y = cursor
 
-    # Dibujar el rectángulo
-    color = (0, 255, 0) if rect_selected else (255, 0, 0)
-    cv2.rectangle(img, (rect_x, rect_y), (rect_x + rect_w, rect_y + rect_h), color, cv2.FILLED)
+            # Mover el cuadrado
+            if square_selected:
+                square_x, square_y = cursor
 
-    # Mostrar imagen
-    cv2.imshow("Arrastrar y Soltar", img)
+    # Dibujar la pelota (estilo pelota de playa)
+    for i in range(4):
+        angle1 = i * 90
+        color = [(0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 0)][i]
+        cv2.ellipse(img, (ball_x, ball_y), (ball_radius, ball_radius), angle1, 0, 90, color, -1)
+
+    # Dibujar el cuadrado
+    square_color = (0, 255, 0) if square_selected else (255, 0, 0)
+    draw_square(img, square_x, square_y, square_size, square_color)
+
+    cv2.imshow("Arrastrar y Soltar - Pelota y Cuadrado", img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+cap.release()
+cv2.destroyAllWindows()
